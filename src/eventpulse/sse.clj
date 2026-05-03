@@ -48,3 +48,23 @@
      :body (reify protocols/StreamableResponseBody
              (write-body-to-stream [_ _ output-stream]
                (write-stream! id queue output-stream)))}))
+
+(defn mock-stream-response []
+  {:status 200
+   :headers {"Content-Type" "text/event-stream; charset=utf-8"
+             "Cache-Control" "no-cache, no-transform"
+             "Connection" "keep-alive"
+             "X-Accel-Buffering" "no"}
+   :body (reify protocols/StreamableResponseBody
+           (write-body-to-stream [_ _ output-stream]
+             (try
+               (.write output-stream (sse-bytes {:event "connected" :demo true}))
+               (.flush output-stream)
+               (loop []
+                 (Thread/sleep 30000)
+                 (.write output-stream (sse-bytes {:event "demo-refresh" :demo true}))
+                 (.flush output-stream)
+                 (recur))
+               (catch IOException _ nil)
+               (catch Exception e
+                 (.println System/err (str "Mock SSE stream error: " (.getMessage e)))))))})
