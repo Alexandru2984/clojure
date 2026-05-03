@@ -1,0 +1,11 @@
+.env
+target/
+.lein-*
+.nrepl-port
+data/*.sqlite3
+data/*.sqlite3-*
+logs/
+*.log
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar

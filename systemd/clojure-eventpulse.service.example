@@ -1,0 +1,18 @@
+[Unit]
+Description=Clojure EventPulse
+After=network.target
+
+[Service]
+Type=simple
+User=micu
+Group=micu
+WorkingDirectory=/home/micu/clojure
+EnvironmentFile=/home/micu/clojure/.env
+ExecStart=/usr/bin/java -jar /home/micu/clojure/target/eventpulse-standalone.jar
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
