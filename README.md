@@ -11,6 +11,8 @@ Public URL: https://clojure.micutu.com
 - Recent events table with source, level, type, message, timestamp, and pretty-printed metadata.
 - Filters by source, level, type, and limit.
 - JSON ingestion API protected by `X-API-Key`.
+- Admin login for viewing real event data.
+- Public visitors see demo/mock dashboard data only.
 - Server-Sent Events live updates through `/api/events/stream`.
 - SQLite event history with cleanup that keeps the latest 5,000 events.
 - `/docs` page with API usage and schema reference.
@@ -47,10 +49,19 @@ Stored in `.env`, which is ignored by Git:
 APP_HOST=127.0.0.1
 APP_PORT=8120
 APP_API_KEY=generated-secret-value
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=generated-admin-password
+ADMIN_SESSION_SECRET=generated-session-secret
 DB_PATH=data/eventpulse.sqlite3
 ```
 
 Do not commit or publish `.env`.
+
+## Admin Login
+
+Open `https://clojure.micutu.com/login` and sign in with the admin credentials from `.env`.
+
+Unauthenticated visitors can still open the dashboard, but the dashboard, stats API, event listing API, and SSE endpoint return mock data instead of real VPS event data.
 
 ## API Key Usage
 
@@ -86,6 +97,9 @@ Unknown fields are rejected. Request bodies larger than 32768 bytes are rejected
 - `GET /api/events/stats`
 - `GET /api/events/stream`
 - `POST /api/events`
+- `GET /login`
+- `POST /login`
+- `GET /logout`
 - `GET /docs`
 
 ## Deployment
@@ -126,6 +140,8 @@ nginx -t
 - The application binds to `127.0.0.1`, never `0.0.0.0`.
 - Nginx is the public TLS reverse proxy.
 - `POST /api/events` requires `X-API-Key`.
+- Real dashboard data requires admin login.
+- Public unauthenticated dashboard traffic receives mock data only.
 - API key is stored only in `.env`.
 - The frontend and README do not expose the real API key.
 - Incoming JSON is strictly validated.

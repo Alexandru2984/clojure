@@ -4,16 +4,23 @@
   (str "<!doctype html><html lang=\"en\"><head>"
        "<meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
        "<title>" title "</title>"
-       "<link rel=\"stylesheet\" href=\"/styles.css\">"
-       "</head><body>" body "<script src=\"/app.js\"></script></body></html>"))
+       "<link rel=\"stylesheet\" href=\"/styles.css?v=20260503-2\">"
+       "</head><body>" body "<script src=\"/app.js?v=20260503-2\"></script></body></html>"))
 
-(defn dashboard []
+(defn dashboard [authenticated?]
   (layout
    "Clojure EventPulse"
    (str
     "<main class=\"shell\">"
     "<header class=\"topbar\"><div><p class=\"eyebrow\">Clojure Event Stream Inspector</p>"
-    "<h1>Clojure EventPulse</h1></div><nav><a href=\"/docs\">Docs</a><a href=\"/health\">Health</a></nav></header>"
+    "<h1>Clojure EventPulse</h1></div><nav><a href=\"/docs\">Docs</a><a href=\"/health\">Health</a>"
+    (if authenticated?
+      "<a href=\"/logout\">Logout</a>"
+      "<a href=\"/login\">Admin login</a>")
+    "</nav></header>"
+    (if authenticated?
+      "<section class=\"auth-banner admin\"><strong>Admin mode</strong><span>Real event data is visible in this session.</span></section>"
+      "<section class=\"auth-banner demo\"><strong>Public demo mode</strong><span>Showing mock data. Real VPS events require admin login.</span></section>")
     "<section class=\"status-line\"><span id=\"streamStatus\" class=\"pill muted\">Connecting</span><span id=\"lastRefresh\">Loading dashboard data</span></section>"
     "<section class=\"cards\" aria-label=\"Event summary\">"
     "<article><span>Total</span><strong id=\"statTotal\">0</strong></article>"
@@ -36,12 +43,28 @@
     "<aside class=\"panel side\"><h2>Levels</h2><div id=\"levelBreakdown\" class=\"bars\"></div><h2>Top sources</h2><div id=\"topSources\" class=\"list\"></div><h2>Top types</h2><div id=\"topTypes\" class=\"list\"></div></aside>"
     "</section></main>")))
 
+(defn login [error?]
+  (layout
+   "Clojure EventPulse Admin Login"
+   (str
+    "<main class=\"shell login-shell\">"
+    "<section class=\"login-panel panel\">"
+    "<p class=\"eyebrow\">Admin access</p><h1>Clojure EventPulse</h1>"
+    "<p class=\"login-copy\">Sign in to view real event data. Public visitors only see demo data.</p>"
+    (when error? "<div class=\"error\">Invalid admin credentials.</div>")
+    "<form method=\"post\" action=\"/login\" class=\"login-form\">"
+    "<label>Username<input name=\"username\" autocomplete=\"username\" required></label>"
+    "<label>Password<input name=\"password\" type=\"password\" autocomplete=\"current-password\" required></label>"
+    "<button type=\"submit\">Login</button>"
+    "</form><p><a href=\"/\">Back to dashboard</a></p>"
+    "</section></main>")))
+
 (defn docs []
   (layout
    "Clojure EventPulse Docs"
    (str
     "<main class=\"shell docs\">"
-    "<header class=\"topbar\"><div><p class=\"eyebrow\">Documentation</p><h1>Clojure EventPulse</h1></div><nav><a href=\"/\">Dashboard</a></nav></header>"
+    "<header class=\"topbar\"><div><p class=\"eyebrow\">Documentation</p><h1>Clojure EventPulse</h1></div><nav><a href=\"/\">Dashboard</a><a href=\"/login\">Admin login</a></nav></header>"
     "<section class=\"panel\"><h2>What it does</h2><p>Clojure EventPulse receives JSON events from VPS projects, validates them, stores recent history in SQLite, and streams updates to the dashboard with Server-Sent Events.</p></section>"
     "<section class=\"panel\"><h2>Event JSON</h2><pre><code>{\n  \"source\": \"weather-sim\",\n  \"level\": \"warning\",\n  \"type\": \"high_cpu\",\n  \"message\": \"Simulation tick delayed\",\n  \"metadata\": {\n    \"cpu\": 91,\n    \"service\": \"simulation\"\n  }\n}</code></pre><p>Required fields: source, level, type, message. Optional field: metadata object.</p></section>"
     "<section class=\"panel\"><h2>Authentication</h2><p>POST requests require the header <code>X-API-Key: &lt;your-api-key&gt;</code>. The real key is stored only in <code>.env</code>.</p>"

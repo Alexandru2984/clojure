@@ -16,6 +16,10 @@
   (let [cfg (config/load-config)]
     (when-not (seq (:api-key cfg))
       (throw (ex-info "APP_API_KEY is required" {})))
+    (when-not (seq (:admin-password cfg))
+      (throw (ex-info "ADMIN_PASSWORD is required" {})))
+    (when-not (seq (:session-secret cfg))
+      (throw (ex-info "ADMIN_SESSION_SECRET is required" {})))
     (db/init! (:db-path cfg))
     (reset! server
             (jetty/run-jetty (routes/app cfg)
