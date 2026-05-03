@@ -50,8 +50,7 @@ APP_HOST=127.0.0.1
 APP_PORT=8120
 APP_API_KEY=generated-secret-value
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=generated-admin-password
-ADMIN_SESSION_SECRET=generated-session-secret
+ADMIN_PASSWORD_HASH=pbkdf2_sha256$...
 DB_PATH=data/eventpulse.sqlite3
 ```
 
@@ -59,9 +58,18 @@ Do not commit or publish `.env`.
 
 ## Admin Login
 
-Open `https://clojure.micutu.com/login` and sign in with the admin credentials from `.env`.
+Open `https://clojure.micutu.com/login` and sign in with the admin username plus the generated password from your password manager or the temporary `.admin-login` handoff file.
 
 Unauthenticated visitors can still open the dashboard, but the dashboard, stats API, event listing API, and SSE endpoint return mock data instead of real VPS event data.
+
+The deployed admin password is stored as a PBKDF2-SHA256 hash in `.env`. A temporary local handoff file, `.admin-login`, may contain the current generated username/password with `0600` permissions; delete it after saving the password in a password manager.
+
+To rotate the admin password:
+
+```bash
+scripts/set_admin_password.sh
+sudo systemctl restart clojure-eventpulse.service
+```
 
 ## API Key Usage
 
@@ -147,6 +155,11 @@ nginx -t
 - Incoming JSON is strictly validated.
 - Client IP is stored only as a short SHA-256 hash prefix.
 - Nginx adds security headers.
+- Nginx rate-limits `/login` and `/api/events`.
+- Nginx limits concurrent SSE streams per client IP.
+- Dynamic HTML/API responses use `Cache-Control: no-store`.
+- Admin password is stored as a PBKDF2-SHA256 hash.
+- Admin sessions are random server-side tokens with an 8-hour TTL and are invalidated on app restart.
 - The application exposes no shell execution, code execution, or user-controlled file paths.
 
 ## Limitations And TODOs

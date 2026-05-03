@@ -6,6 +6,7 @@
            [java.util.concurrent LinkedBlockingQueue TimeUnit]))
 
 (defonce subscribers (atom {}))
+(def max-subscribers 64)
 
 (defn- sse-bytes [event]
   (.getBytes (str "data: " (json/generate-string event) "\n\n") "UTF-8"))
@@ -36,23 +37,28 @@
       (swap! subscribers dissoc id))))
 
 (defn stream-response []
-  (let [id (str (UUID/randomUUID))
-        queue (LinkedBlockingQueue. 100)]
-    (swap! subscribers assoc id queue)
-    (.offer queue {:event "connected"})
-    {:status 200
-     :headers {"Content-Type" "text/event-stream; charset=utf-8"
-               "Cache-Control" "no-cache, no-transform"
-               "Connection" "keep-alive"
-               "X-Accel-Buffering" "no"}
-     :body (reify protocols/StreamableResponseBody
-             (write-body-to-stream [_ _ output-stream]
-               (write-stream! id queue output-stream)))}))
+  (if (>= (count @subscribers) max-subscribers)
+    {:status 503
+     :headers {"Content-Type" "application/json; charset=utf-8"
+               "Cache-Control" "no-store"}
+     :body "{\"error\":\"Too many live streams\"}"}
+    (let [id (str (UUID/randomUUID))
+          queue (LinkedBlockingQueue. 100)]
+      (swap! subscribers assoc id queue)
+      (.offer queue {:event "connected"})
+      {:status 200
+       :headers {"Content-Type" "text/event-stream; charset=utf-8"
+                 "Cache-Control" "no-store, no-cache, no-transform"
+                 "Connection" "keep-alive"
+                 "X-Accel-Buffering" "no"}
+       :body (reify protocols/StreamableResponseBody
+               (write-body-to-stream [_ _ output-stream]
+                 (write-stream! id queue output-stream)))})))
 
 (defn mock-stream-response []
   {:status 200
    :headers {"Content-Type" "text/event-stream; charset=utf-8"
-             "Cache-Control" "no-cache, no-transform"
+             "Cache-Control" "no-store, no-cache, no-transform"
              "Connection" "keep-alive"
              "X-Accel-Buffering" "no"}
    :body (reify protocols/StreamableResponseBody

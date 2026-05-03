@@ -1,4 +1,5 @@
 .env
+.admin-login
 target/
 .lein-*
 .nrepl-port

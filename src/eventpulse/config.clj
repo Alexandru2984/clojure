@@ -38,5 +38,6 @@
       :api-key (env-value file-env "APP_API_KEY" "")
       :admin-username (env-value file-env "ADMIN_USERNAME" "admin")
       :admin-password (env-value file-env "ADMIN_PASSWORD" "")
+      :admin-password-hash (env-value file-env "ADMIN_PASSWORD_HASH" "")
       :session-secret (env-value file-env "ADMIN_SESSION_SECRET" "")
       :db-path (env-value file-env "DB_PATH" "data/eventpulse.sqlite3")})))

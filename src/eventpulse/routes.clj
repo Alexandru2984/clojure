@@ -1,6 +1,7 @@
 (ns eventpulse.routes
   (:require [cheshire.core :as json]
             [clojure.string :as str]
+            [eventpulse.auth :as auth]
             [eventpulse.db :as db]
             [eventpulse.mock :as mock]
             [eventpulse.sse :as sse]
@@ -9,26 +10,31 @@
             [ring.util.codec :as codec]
             [ring.util.response :as response])
   (:import [java.io ByteArrayOutputStream]
-           [java.security MessageDigest]
-           [javax.crypto Mac]
-           [javax.crypto.spec SecretKeySpec]))
+           [java.security MessageDigest]))
 
 (def security-headers
   {"X-Content-Type-Options" "nosniff"
    "X-Frame-Options" "DENY"
    "Referrer-Policy" "strict-origin-when-cross-origin"
-   "Permissions-Policy" "geolocation=(), microphone=(), camera=()"})
+   "Permissions-Policy" "geolocation=(), microphone=(), camera=()"
+   "Content-Security-Policy" "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+   "Strict-Transport-Security" "max-age=31536000; includeSubDomains"})
+
+(def no-store-headers
+  {"Cache-Control" "no-store, no-cache, must-revalidate, private"
+   "Pragma" "no-cache"
+   "Expires" "0"})
 
 (defn- json-response
   ([body] (json-response 200 body))
   ([status body]
    {:status status
-    :headers (merge security-headers {"Content-Type" "application/json; charset=utf-8"})
+    :headers (merge security-headers no-store-headers {"Content-Type" "application/json; charset=utf-8"})
     :body (json/generate-string body)}))
 
 (defn- html-response [body]
   {:status 200
-   :headers (merge security-headers {"Content-Type" "text/html; charset=utf-8"})
+   :headers (merge security-headers no-store-headers {"Content-Type" "text/html; charset=utf-8"})
    :body body})
 
 (defn- not-found []
@@ -80,43 +86,26 @@
   (let [digest (.digest (MessageDigest/getInstance "SHA-256") (.getBytes (or value "") "UTF-8"))]
     (subs (apply str (map #(format "%02x" (bit-and % 0xff)) digest)) 0 16)))
 
-(defn- hmac-sha256 [secret value]
-  (let [mac (Mac/getInstance "HmacSHA256")
-        key (SecretKeySpec. (.getBytes secret "UTF-8") "HmacSHA256")]
-    (.init mac key)
-    (apply str (map #(format "%02x" (bit-and % 0xff))
-                    (.doFinal mac (.getBytes value "UTF-8"))))))
-
-(defn- constant= [a b]
-  (let [left (.getBytes (or a "") "UTF-8")
-        right (.getBytes (or b "") "UTF-8")]
-    (MessageDigest/isEqual left right)))
-
 (defn- parse-cookies [request]
   (->> (str/split (or (get-in request [:headers "cookie"]) "") #";")
        (keep (fn [part]
                (let [[k v] (str/split (str/trim part) #"=" 2)]
                  (when (and (seq k) v)
-                   [k v]))))
+                   [(codec/url-decode k) (codec/url-decode v)]))))
        (into {})))
-
-(defn- session-token [config username]
-  (str username ":" (hmac-sha256 (:session-secret config) username)))
 
 (defn- authenticated? [request config]
   (let [token (get (parse-cookies request) "eventpulse_admin")
-        username (:admin-username config)
-        expected (session-token config username)]
-    (and (seq (:session-secret config))
-         (seq token)
-         (constant= expected token))))
+        username (:admin-username config)]
+    (and (seq token)
+         (auth/valid-session? token username))))
 
 (defn- secure-request? [request]
   (or (= "https" (get-in request [:headers "x-forwarded-proto"]))
       (= :https (:scheme request))))
 
 (defn- session-cookie [value max-age secure?]
-  (str "eventpulse_admin=" value
+  (str "eventpulse_admin=" (codec/url-encode value)
        "; Path=/; Max-Age=" max-age
        "; HttpOnly"
        (when secure? "; Secure")
@@ -125,13 +114,16 @@
 (defn- login-response [request config]
   (-> (redirect-response "/")
       (assoc-in [:headers "Set-Cookie"]
-                (session-cookie (session-token config (:admin-username config))
+                (session-cookie (auth/create-session! (:admin-username config))
                                 28800
                                 (secure-request? request)))))
 
 (defn- logout-response [request]
-  (-> (redirect-response "/")
-      (assoc-in [:headers "Set-Cookie"] (session-cookie "expired" 0 (secure-request? request)))))
+  (let [token (get (parse-cookies request) "eventpulse_admin")]
+    (when (seq token)
+      (auth/destroy-session! token))
+    (-> (redirect-response "/")
+        (assoc-in [:headers "Set-Cookie"] (session-cookie "expired" 0 (secure-request? request))))))
 
 (defn- client-id [request]
   (let [forwarded (first (str/split (or (get-in request [:headers "x-forwarded-for"]) "") #","))
@@ -141,7 +133,7 @@
 (defn- authorized? [request config]
   (let [expected (:api-key config)
         provided (get-in request [:headers "x-api-key"])]
-    (and (seq expected) (= expected provided))))
+    (and (seq expected) (auth/constant= expected provided))))
 
 (defn- handle-post-event [request config]
   (if-not (authorized? request config)
@@ -190,11 +182,13 @@
 (defn- handle-login [request config]
   (let [params (parse-form-body request)
         username (get params "username")
-        password (get params "password")]
-    (if (and (constant= (:admin-username config) username)
-             (constant= (:admin-password config) password)
-             (seq (:admin-password config))
-             (seq (:session-secret config)))
+        password (get params "password")
+        password-ok? (if (seq (:admin-password-hash config))
+                       (auth/verify-password-hash? password (:admin-password-hash config))
+                       (and (seq (:admin-password config))
+                            (auth/constant= (:admin-password config) password)))]
+    (if (and (auth/constant= (:admin-username config) username)
+             password-ok?)
       (login-response request config)
       (html-response (views/login true)))))
 

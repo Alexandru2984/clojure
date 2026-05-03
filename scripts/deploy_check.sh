@@ -8,10 +8,20 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
+env_value() {
+  local key="$1"
+  sed -n "s/^${key}=//p" .env | tail -n 1
+}
+
+APP_HOST="$(env_value APP_HOST)"
+APP_PORT="$(env_value APP_PORT)"
+APP_API_KEY="$(env_value APP_API_KEY)"
+ADMIN_USERNAME="$(env_value ADMIN_USERNAME)"
+
+if [[ -z "${ADMIN_PASSWORD:-}" && -f .admin-login ]]; then
+  # shellcheck disable=SC1091
+  source .admin-login
+fi
 
 base="http://${APP_HOST:-127.0.0.1}:${APP_PORT}"
 
@@ -38,6 +48,10 @@ curl -fsS "$base/api/events?limit=2"
 echo
 
 echo "Checking admin login and real event listing"
+if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
+  echo "ADMIN_PASSWORD not available for deploy check; skipping admin login check" >&2
+  exit 1
+fi
 jar="$(mktemp)"
 trap 'rm -f "$jar"' EXIT
 login_code="$(curl -sS -o /dev/null -w '%{http_code}' -c "$jar" -X POST "$base/login" \
