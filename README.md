@@ -136,9 +136,12 @@ The systemd service runs as user `micu`, uses `/home/micu/clojure` as `WorkingDi
 
 ```bash
 scripts/deploy_check.sh
+scripts/dependency_scan.sh
 curl -fsS http://127.0.0.1:8120/health
 curl -fsS https://clojure.micutu.com/health
 systemctl status clojure-eventpulse.service --no-pager
+journalctl -u clojure-eventpulse-dependency-scan.service -n 100 --no-pager
+systemctl list-timers clojure-eventpulse-dependency-scan.timer --no-pager
 journalctl -u clojure-eventpulse.service -n 100 --no-pager
 nginx -t
 ```
@@ -160,6 +163,7 @@ nginx -t
 - Dynamic HTML/API responses use `Cache-Control: no-store`.
 - Admin password is stored as a PBKDF2-SHA256 hash.
 - Admin sessions are random server-side tokens with an 8-hour TTL and are invalidated on app restart.
+- Dependency vulnerability scanning is automated monthly with OSV Scanner via `clojure-eventpulse-dependency-scan.timer`.
 - The application exposes no shell execution, code execution, or user-controlled file paths.
 
 ## Limitations And TODOs

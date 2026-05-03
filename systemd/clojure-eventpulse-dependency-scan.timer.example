@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Clojure EventPulse dependency vulnerability scan monthly
+
+[Timer]
+OnCalendar=monthly
+Persistent=true
+RandomizedDelaySec=2h
+Unit=clojure-eventpulse-dependency-scan.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Clojure EventPulse monthly dependency vulnerability scan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=micu
+Group=micu
+WorkingDirectory=/home/micu/clojure
+ExecStart=/home/micu/clojure/scripts/dependency_scan.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/home/micu/clojure
